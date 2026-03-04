@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+</head>
+<body>
+    <h1>EmailJS Test</h1>
+    <button onclick="testEmail()">Send Test Email</button>
+    <div id="result"></div>
+
+    <script>
+        // Initialize EmailJS
+        emailjs.init('G_jnv4A__NXXMfzII');
+        
+        function testEmail() {
+            const params = {
+                to_email: 'your-personal-gmail@gmail.com', // PUT YOUR PERSONAL GMAIL HERE
+                to_name: 'Test User',
+                from_name: 'PUFFSNAP Test',
+                message: 'This is a test email from PUFFSNAP!',
+                subject: 'PUFFSNAP Test Email'
+            };
+            
+            emailjs.send('service_yymun2b', 'template_yvrf84o', params)
+                .then(function(response) {
+                    document.getElementById('result').innerHTML = '✅ Email sent! Check your inbox.';
+                    console.log('SUCCESS!', response.status, response.text);
+                }, function(error) {
+                    document.getElementById('result').innerHTML = '❌ Error: ' + error;
+                    console.log('FAILED...', error);
+                });
+        }
+    </script>
+</body>
+</html>
