@@ -5,8 +5,9 @@ interface WelcomeScreenProps {
 }
 
 const WelcomeScreen = ({ onStart }: WelcomeScreenProps) => {
+
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6 py-12 halftone">
+    <div className="relative flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden px-4 py-8 sm:px-6 sm:py-12 halftone">
       {/* Floating comic elements */}
       <div className="floating-particle left-[8%] top-[15%]" style={{ animationDelay: "0s" }}>
         <Star className="h-8 w-8 text-accent fill-accent" />
@@ -47,7 +48,7 @@ const WelcomeScreen = ({ onStart }: WelcomeScreenProps) => {
         </div>
 
         {/* Brand name */}
-        <h1 className="mb-2 font-display text-8xl md:text-9xl lg:text-[12rem] font-black comic-text-shadow text-primary leading-none tracking-wide" style={{
+        <h1 className="mb-2 font-display text-6xl sm:text-8xl md:text-9xl lg:text-[12rem] font-black comic-text-shadow text-primary leading-none tracking-wide" style={{
           textShadow: '-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, -3px -3px 0 #000, 3px -3px 0 #000, -3px 3px 0 #000, 3px 3px 0 #000',
           letterSpacing: '0.05em'
         }}>
@@ -55,8 +56,8 @@ const WelcomeScreen = ({ onStart }: WelcomeScreenProps) => {
         </h1>
 
         {/* Tagline in speech bubble style */}
-        <div className="speech-bubble mb-10 mt-4">
-          <p className="font-display text-2xl md:text-3xl text-foreground tracking-wider">
+        <div className="speech-bubble mb-8 sm:mb-10 mt-3 sm:mt-4">
+          <p className="font-display text-xl sm:text-2xl md:text-3xl text-foreground tracking-wider">
             Snap. Pose. Slay. ✨
           </p>
         </div>
@@ -71,24 +72,24 @@ const WelcomeScreen = ({ onStart }: WelcomeScreenProps) => {
         </button>
 
         {/* Feature icons */}
-        <div className="mt-14 flex items-center gap-6">
-          <div className="flex flex-col items-center gap-2">
-            <div className="comic-card flex h-16 w-16 items-center justify-center bg-pop-yellow">
-              <Star className="h-8 w-8 text-foreground fill-foreground" />
+        <div className="mt-10 sm:mt-14 flex items-center gap-4 sm:gap-6">
+          <div className="flex flex-col items-center gap-1.5 sm:gap-2">
+            <div className="comic-card flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center bg-pop-yellow">
+              <Star className="h-6 w-6 sm:h-8 sm:w-8 text-foreground fill-foreground" />
             </div>
-            <span className="font-bold text-sm text-muted-foreground">ICONIC</span>
+            <span className="font-bold text-xs sm:text-sm text-muted-foreground">ICONIC</span>
           </div>
-          <div className="flex flex-col items-center gap-2">
-            <div className="comic-card flex h-16 w-16 items-center justify-center bg-primary">
-              <Zap className="h-8 w-8 text-primary-foreground fill-primary-foreground" />
+          <div className="flex flex-col items-center gap-1.5 sm:gap-2">
+            <div className="comic-card flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center bg-primary">
+              <Zap className="h-6 w-6 sm:h-8 sm:w-8 text-primary-foreground fill-primary-foreground" />
             </div>
-            <span className="font-bold text-sm text-muted-foreground">BOLD</span>
+            <span className="font-bold text-xs sm:text-sm text-muted-foreground">BOLD</span>
           </div>
-          <div className="flex flex-col items-center gap-2">
-            <div className="comic-card flex h-16 w-16 items-center justify-center bg-secondary">
-              <Sparkles className="h-8 w-8 text-secondary-foreground" />
+          <div className="flex flex-col items-center gap-1.5 sm:gap-2">
+            <div className="comic-card flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center bg-secondary">
+              <Sparkles className="h-6 w-6 sm:h-8 sm:w-8 text-secondary-foreground" />
             </div>
-            <span className="font-bold text-sm text-muted-foreground">FUN</span>
+            <span className="font-bold text-xs sm:text-sm text-muted-foreground">FUN</span>
           </div>
         </div>
       </div>

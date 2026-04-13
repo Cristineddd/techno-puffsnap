@@ -1,9 +1,20 @@
-import { Download, QrCode, Facebook, Instagram, Twitter, ArrowLeft, CheckCircle, Printer, Star, Zap, Smartphone, Mail } from "lucide-react";
-import { useState, useEffect } from "react";
-import QRCodeLib from 'qrcode';
-import { StripData } from "./StripCustomizationScreen";
+import { Download, Mail, Printer, QrCode, ArrowLeft, CheckCircle } from "lucide-react";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import QRCode from "qrcode";
+import { uploadToCloudinary } from "../../lib/cloudinary";
+import { PhotoMode } from "./ModeSelectionScreen";
+import { saveToGallery } from "../../lib/galleryService";
+import { sendStripEmail, type StripEmailData } from "../../lib/emailServiceReal";
 import EmailScheduling from "./EmailScheduling";
-import { EmailService } from "../../lib/emailServiceReal";
+
+interface StripData {
+  mode: PhotoMode;
+  frame: string;
+  hashtag: string;
+  customMessage?: string;
+  stripImage: string;
+}
 
 interface StripSharingScreenProps {
   stripData: StripData;
@@ -18,60 +29,45 @@ const StripSharingScreen = ({ stripData, onBack, onFinish }: StripSharingScreenP
   const [emailScheduled, setEmailScheduled] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [isGeneratingQR, setIsGeneratingQR] = useState(false);
+  const [cloudinaryUrl, setCloudinaryUrl] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const navigate = useNavigate();
 
-  // Cloudinary config - replace with your actual values
-  const CLOUDINARY_CLOUD_NAME = 'dopc9l096'; // Your cloud name
-  const CLOUDINARY_UPLOAD_PRESET = 'puffsnap_uploads'; // Your upload preset
+  // Cloudinary config
+  const CLOUDINARY_CLOUD_NAME = 'dopc9l096';
+  const CLOUDINARY_UPLOAD_PRESET = 'puffsnap_uploads';
 
-  // Generate QR code when component mounts
-  useEffect(() => {
-    generateQRCode();
-  }, [stripData.stripImage]);
+  // NO auto-upload on mount — Cloudinary upload only happens when QR is requested
 
-  const uploadToCloudinary = async (imageDataUrl: string): Promise<string> => {
-    const formData = new FormData();
-    
-    // Convert data URL to blob
-    const response = await fetch(imageDataUrl);
-    const blob = await response.blob();
-    
-    formData.append('file', blob);
-    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-    formData.append('folder', 'puffsnap-strips');
-    
-    const uploadResponse = await fetch(
-      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
-      {
-        method: 'POST',
-        body: formData,
-      }
-    );
-    
-    if (!uploadResponse.ok) {
-      throw new Error('Upload failed');
-    }
-    
-    const data = await uploadResponse.json();
-    return data.secure_url;
-  };
-
+  /** Upload to Cloudinary + generate QR — only called when user taps "SCAN QR" */
   const generateQRCode = async () => {
+    // If we already have a QR code from a previous click, just toggle display
+    if (qrCodeUrl) return;
+
     try {
       setIsGeneratingQR(true);
-      
-      // Try to upload to Cloudinary first
-      let qrData = stripData.stripImage;
-      
-      try {
-        const cloudinaryUrl = await uploadToCloudinary(stripData.stripImage);
+      setUploadError(null);
+
+      let qrData: string;
+
+      // If already uploaded, reuse URL
+      if (cloudinaryUrl) {
         qrData = cloudinaryUrl;
-        console.log('Image uploaded to Cloudinary:', cloudinaryUrl);
-      } catch (uploadError) {
-        console.warn('Cloudinary upload failed, using data URL:', uploadError);
-        // Fallback to data URL if Cloudinary fails
+      } else {
+        try {
+          const url = await uploadToCloudinary(stripData.stripImage);
+          setCloudinaryUrl(url);
+          qrData = url;
+          console.log('Image uploaded to Cloudinary:', url);
+        } catch (err) {
+          console.warn('Cloudinary upload failed:', err);
+          setUploadError('Upload failed — try downloading instead!');
+          setIsGeneratingQR(false);
+          return;
+        }
       }
-      
-      const qrCode = await QRCodeLib.toDataURL(qrData, {
+
+      const qrCode = await QRCode.toDataURL(qrData, {
         width: 200,
         margin: 2,
         color: {
@@ -82,12 +78,13 @@ const StripSharingScreen = ({ stripData, onBack, onFinish }: StripSharingScreenP
       setQrCodeUrl(qrCode);
     } catch (error) {
       console.error('Error generating QR code:', error);
+      setUploadError('Could not generate QR code.');
     } finally {
       setIsGeneratingQR(false);
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     try {
       if (!stripData.stripImage || stripData.stripImage === '') {
         alert('Strip image not available. Please try regenerating.');
@@ -101,6 +98,18 @@ const StripSharingScreen = ({ stripData, onBack, onFinish }: StripSharingScreenP
       link.click();
       document.body.removeChild(link);
       
+      // Save to Firestore gallery (+ localStorage fallback)
+      try {
+        await saveToGallery({
+          stripImage: stripData.stripImage,
+          cloudinaryUrl: cloudinaryUrl || undefined,
+          mode: stripData.mode,
+          frame: stripData.frame,
+        });
+      } catch (err) {
+        console.warn("Gallery save failed:", err);
+      }
+
       setDownloadSuccess(true);
       setTimeout(() => setDownloadSuccess(false), 2000);
     } catch (error) {
@@ -132,7 +141,7 @@ const StripSharingScreen = ({ stripData, onBack, onFinish }: StripSharingScreenP
               }
               @media print {
                 body { background: white; }
-                img { max-width: ${stripData.mode === 6 ? "4in" : "2in"}; }
+                img { max-width: ${stripData.mode === 6 ? "4in" : stripData.mode === 4 ? "2in" : "2in"}; }
               }
             </style>
           </head>
@@ -150,52 +159,34 @@ const StripSharingScreen = ({ stripData, onBack, onFinish }: StripSharingScreenP
     }
   };
 
-  const handleShare = (platform: string) => {
-    console.log(`Sharing to ${platform}`);
-    onFinish();
+  // Navigate to email scheduling screen with proper data structure
+  const handleEmailClick = () => {
+    navigate("/email-schedule", {
+      state: {
+        stripImage: stripData.stripImage,
+        imageUrl: cloudinaryUrl || stripData.stripImage,
+        qrCode: qrCodeUrl,
+        mode: stripData.mode,
+        frame: stripData.frame,
+        hashtag: stripData.hashtag,
+        customMessage: stripData.customMessage || '',
+        onSchedule: (emailData: StripEmailData) => handleScheduleEmail(emailData),
+      },
+    });
   };
 
-  const handleScheduleEmail = async (emailData: any) => {
+  const handleScheduleEmail = async (emailData: StripEmailData) => {
     try {
-      console.log('🚀 REAL EMAIL SENDING with EmailJS!');
-      console.log('📧 Email data:', emailData);
-      console.log('📸 Strip data:', stripData);
+      const result = await sendStripEmail(emailData);
       
-      const stripEmailData = {
-        stripImage: stripData.stripImage,
-        stripData: {
-          mode: stripData.mode,
-          frame: stripData.frame,
-          hashtag: stripData.hashtag,
-          customMessage: stripData.customMessage || ''
-        }
-      };
-      
-      // Use real EmailJS service
-      const result = await EmailService.scheduleEmail(emailData, stripEmailData);
-      
-      if (result.success) {
-        setEmailScheduled(true);
-        setShowEmailScheduling(false);
-        
-        alert(`✅ EMAIL SENT SUCCESSFULLY!\n\n📧 Sent to: ${emailData.contacts.map((c: any) => c.email).join(', ')}\n📅 Scheduled for: ${new Date(`${emailData.scheduledDate}T${emailData.scheduledTime}`).toLocaleString()}\n\n🎉 Check your inbox (and spam folder) in a few minutes!`);
-      } else {
-        throw new Error(result.error || 'Failed to send email');
+      if (!result.success) {
+        throw new Error(`Failed to send to ${result.failed} recipient(s)`);
       }
+      
+      setEmailScheduled(true);
     } catch (error) {
-      console.error('❌ Email sending failed:', error);
-      
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      
-      if (errorMessage.includes('not configured')) {
-        alert(`⚙️ EMAIL NOT CONFIGURED\n\n${errorMessage}\n\n📋 Setup steps:\n1. Go to emailjs.com\n2. Create account & service\n3. Add credentials to .env.local\n\nFor now, this is a demo simulation.`);
-        
-        // Fallback to simulation
-        setEmailScheduled(true);
-        setShowEmailScheduling(false);
-      } else {
-        alert(`❌ EMAIL SENDING FAILED\n\n${errorMessage}\n\n🔄 Please check your EmailJS configuration or try again later.`);
-      }
+      console.error("Failed to send email:", error);
+      alert(error instanceof Error ? error.message : "Failed to send email");
     }
   };
 
@@ -211,34 +202,34 @@ const StripSharingScreen = ({ stripData, onBack, onFinish }: StripSharingScreenP
   }
 
   return (
-    <div className="min-h-screen px-4 py-8 halftone">
-      <div className="mx-auto max-w-2xl">
-        {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
-          <button
-            onClick={onBack}
-            className="comic-button flex items-center gap-2 bg-muted px-4 py-2 text-muted-foreground"
-          >
-            <ArrowLeft className="h-5 w-5" />
-            BACK
-          </button>
-          <h2 className="font-display text-2xl text-foreground">SHARE IT! 🚀</h2>
-          <div className="w-20" />
-        </div>
+    <div className="min-h-[100dvh] halftone flex flex-col">
+      {/* ── Sticky header ── */}
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border px-4 py-3 flex items-center justify-between">
+        <button
+          onClick={onBack}
+          className="comic-button flex items-center gap-1.5 bg-muted px-3 py-1.5 text-sm text-muted-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          BACK
+        </button>
+        <h2 className="font-display text-lg text-foreground">SHARE IT! 🚀</h2>
+        <div className="w-16" />
+      </div>
 
-        {/* Strip preview */}
-        <div className="mb-8 flex justify-center">
-          <div className="comic-card-lg overflow-hidden bg-card p-4">
-            <img
-              src={stripData.stripImage}
-              alt="Your PUFF SNAP strip"
-              className="max-h-[400px] w-auto rounded-2xl object-contain border-4 border-foreground"
-            />
-          </div>
+      {/* ── Body ── */}
+      <div className="flex-1 flex flex-col items-center px-4 py-5 gap-4 max-w-md mx-auto w-full">
+
+        {/* Strip preview — compact */}
+        <div className="comic-card overflow-hidden bg-card p-2 inline-block">
+          <img
+            src={stripData.stripImage}
+            alt="Your PUFF SNAP strip"
+            className="max-h-[200px] sm:max-h-[280px] w-auto rounded-xl object-contain border-2 border-foreground"
+          />
         </div>
 
         {/* Sharing options */}
-        <div className="space-y-4">
+        <div className="w-full space-y-3">
           {/* Download */}
           <button
             onClick={handleDownload}
@@ -266,7 +257,7 @@ const StripSharingScreen = ({ stripData, onBack, onFinish }: StripSharingScreenP
             PRINT IT!
           </button>
 
-          {/* Email Scheduling */}
+          {/* Email */}
           <button
             onClick={() => setShowEmailScheduling(true)}
             className="btn-primary-pop flex w-full items-center justify-center gap-3 text-xl bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90"
@@ -274,85 +265,87 @@ const StripSharingScreen = ({ stripData, onBack, onFinish }: StripSharingScreenP
             {emailScheduled ? (
               <>
                 <CheckCircle className="h-7 w-7" />
-                EMAIL SCHEDULED! ✅
+                EMAIL SENT! ✅
               </>
             ) : (
               <>
                 <Mail className="h-7 w-7" />
-                📧 SCHEDULE EMAIL
+                SEND VIA EMAIL
               </>
             )}
           </button>
 
           {/* QR Code */}
           <button
-            onClick={() => setShowQR(!showQR)}
-            className="comic-button flex w-full items-center justify-center gap-3 bg-accent text-accent-foreground text-xl px-6 py-4"
+            onClick={() => {
+              if (!showQR) {
+                // First time opening — upload to Cloudinary + generate QR
+                generateQRCode();
+              }
+              setShowQR(!showQR);
+            }}
+            disabled={isGeneratingQR}
+            className="comic-button flex w-full items-center justify-center gap-3 bg-accent text-accent-foreground text-xl px-6 py-4 disabled:opacity-60"
           >
-            <QrCode className="h-7 w-7" />
-            {showQR ? "HIDE QR" : "SCAN QR CODE"}
+            {isGeneratingQR ? (
+              <>
+                <QrCode className="h-7 w-7 animate-pulse" />
+                UPLOADING… ☁️
+              </>
+            ) : (
+              <>
+                <QrCode className="h-7 w-7" />
+                {showQR ? "HIDE QR" : "SCAN QR CODE"}
+              </>
+            )}
           </button>
 
           {/* QR Code Display */}
           {showQR && (
             <div className="comic-card bg-card flex flex-col items-center p-6 animate-scale-in">
-              {qrCodeUrl ? (
+              {isGeneratingQR ? (
+                <div className="mb-4 h-48 w-48 rounded-2xl bg-muted p-4 border-4 border-foreground flex items-center justify-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <QrCode className="h-12 w-12 text-muted-foreground animate-pulse" />
+                    <span className="text-xs font-bold text-muted-foreground">Uploading to cloud…</span>
+                  </div>
+                </div>
+              ) : uploadError ? (
+                <div className="mb-4 flex flex-col items-center gap-3">
+                  <div className="h-48 w-48 rounded-2xl bg-red-50 border-4 border-red-300 flex items-center justify-center p-4">
+                    <div className="text-center">
+                      <span className="text-4xl">😿</span>
+                      <p className="text-sm font-bold text-red-500 mt-2">{uploadError}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => { setUploadError(null); generateQRCode(); }}
+                    className="comic-button bg-accent text-accent-foreground px-4 py-2 text-sm"
+                  >
+                    🔄 TRY AGAIN
+                  </button>
+                </div>
+              ) : qrCodeUrl ? (
                 <div className="mb-4">
                   <div className="bg-white p-4 rounded-lg">
                     <img src={qrCodeUrl} alt="QR Code" className="w-48 h-48" />
                   </div>
                 </div>
-              ) : (
-                <div className="mb-4 h-48 w-48 rounded-2xl bg-foreground p-4 border-4 border-foreground animate-pulse">
-                  <div className="flex h-full w-full items-center justify-center">
-                    <QrCode className="h-12 w-12 text-card" />
-                  </div>
-                </div>
-              )}
-              <p className="text-center font-bold text-muted-foreground">
-                {isGeneratingQR ? 'Generating QR code...' : 'Scan with your phone to download!'} 📱
-              </p>
-              {!qrCodeUrl && !isGeneratingQR && (
-                <p className="text-xs text-center text-muted-foreground mt-2">
-                  Note: Setup Cloudinary for better QR scanning
+              ) : null}
+              {qrCodeUrl && !uploadError && (
+                <p className="text-center font-bold text-muted-foreground">
+                  Scan with your phone to download! 📱
                 </p>
               )}
             </div>
           )}
 
-          {/* Social sharing */}
-          <div className="comic-card bg-card p-6">
-            <h3 className="mb-4 text-center font-display text-xl text-primary">
-              SHARE ON SOCIALS! 📲
-            </h3>
-            <div className="flex justify-center gap-4">
-              <button
-                onClick={() => handleShare("facebook")}
-                className="comic-card flex h-16 w-16 items-center justify-center bg-[#1877F2] transition-transform hover:scale-105"
-              >
-                <Facebook className="h-8 w-8 text-white" />
-              </button>
-              <button
-                onClick={() => handleShare("instagram")}
-                className="comic-card flex h-16 w-16 items-center justify-center bg-gradient-to-br from-[#833AB4] via-[#FD1D1D] to-[#FCAF45] transition-transform hover:scale-105"
-              >
-                <Instagram className="h-8 w-8 text-white" />
-              </button>
-              <button
-                onClick={() => handleShare("twitter")}
-                className="comic-card flex h-16 w-16 items-center justify-center bg-foreground transition-transform hover:scale-105"
-              >
-                <Twitter className="h-8 w-8 text-card" />
-              </button>
-            </div>
-          </div>
-
-          {/* Skip button */}
+          {/* Done */}
           <button
             onClick={onFinish}
-            className="comic-button w-full bg-muted py-3 text-center text-muted-foreground"
+            className="comic-button w-full bg-muted py-3 text-center text-sm text-muted-foreground"
           >
-            SKIP FOR NOW
+            DONE — BACK TO START
           </button>
         </div>
       </div>

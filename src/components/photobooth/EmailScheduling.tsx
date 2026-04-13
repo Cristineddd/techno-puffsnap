@@ -1,9 +1,5 @@
 import { useState } from "react";
-import { Calendar, Clock, Mail, Plus, X, Users, Send } from "lucide-react";
-import { Button } from "../ui/button";
-import { Input } from "../ui/input";
-import { Textarea } from "../ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { ArrowLeft, Mail, Plus, X, Send, Clock, User, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 
 interface EmailContact {
   id: string;
@@ -29,243 +25,260 @@ const EmailScheduling = ({ stripImage, onScheduleEmail, onCancel }: EmailSchedul
   const [contacts, setContacts] = useState<EmailContact[]>([]);
   const [newContactName, setNewContactName] = useState("");
   const [newContactEmail, setNewContactEmail] = useState("");
-  const [subject, setSubject] = useState("Check out our PUFFSNAP photo strip! 📸");
-  const [message, setMessage] = useState("Hey! We had an amazing time at the photobooth and wanted to share this cool photo strip with you! Hope you love it as much as we do! 😊");
+  const [message, setMessage] = useState("Hey! Check out our PUFFSNAP photo strip! 📸✨");
+  const [isSending, setIsSending] = useState(false);
+  const [showSchedule, setShowSchedule] = useState(false);
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
-  const [isScheduling, setIsScheduling] = useState(false);
+  const [showMessageEdit, setShowMessageEdit] = useState(false);
+
+  const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   const addContact = () => {
-    if (newContactName.trim() && newContactEmail.trim() && isValidEmail(newContactEmail)) {
-      const newContact: EmailContact = {
-        id: Date.now().toString(),
-        name: newContactName.trim(),
-        email: newContactEmail.trim(),
-      };
-      setContacts([...contacts, newContact]);
-      setNewContactName("");
-      setNewContactEmail("");
-    }
+    const name = newContactName.trim();
+    const email = newContactEmail.trim();
+    if (!email || !isValidEmail(email)) return;
+    setContacts([...contacts, {
+      id: Date.now().toString(),
+      name: name || email.split("@")[0],
+      email,
+    }]);
+    setNewContactName("");
+    setNewContactEmail("");
   };
 
-  const removeContact = (id: string) => {
-    setContacts(contacts.filter(contact => contact.id !== id));
-  };
-
-  const isValidEmail = (email: string) => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  };
-
-  const handleScheduleEmail = async () => {
-    if (contacts.length === 0 || !scheduledDate || !scheduledTime) {
-      alert("Please add at least one contact and set a date/time!");
-      return;
-    }
-
-    setIsScheduling(true);
-    
-    const emailData: EmailScheduleData = {
-      contacts,
-      subject,
-      message,
-      scheduledDate,
-      scheduledTime,
-    };
-
-    try {
-      await onScheduleEmail(emailData);
-    } catch (error) {
-      console.error("Error scheduling email:", error);
-      alert("Failed to schedule email. Please try again.");
-    } finally {
-      setIsScheduling(false);
-    }
-  };
+  const removeContact = (id: string) => setContacts(contacts.filter(c => c.id !== id));
 
   const now = new Date();
-  const today = now.toISOString().split('T')[0];
+  const today = now.toISOString().split("T")[0];
   const currentTime = now.toTimeString().slice(0, 5);
 
+  // When "Send Now" — set date/time to now
+  const handleSend = async () => {
+    if (contacts.length === 0) return;
+    setIsSending(true);
+
+    const finalDate = showSchedule && scheduledDate ? scheduledDate : today;
+    const finalTime = showSchedule && scheduledTime ? scheduledTime : currentTime;
+
+    try {
+      await onScheduleEmail({
+        contacts,
+        subject: `📸 Your PUFFSNAP Photo Strip!`,
+        message,
+        scheduledDate: finalDate,
+        scheduledTime: finalTime,
+      });
+    } catch {
+      alert("Failed to send. Please try again.");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const canSend = contacts.length > 0 && (!showSchedule || (scheduledDate && scheduledTime));
+
   return (
-    <div className="min-h-screen px-4 py-8 halftone">
-      <div className="mx-auto max-w-4xl">
-        <div className="mb-6 flex items-center justify-between">
-          <button
-            onClick={onCancel}
-            className="comic-button flex items-center gap-2 bg-muted px-4 py-2 text-muted-foreground"
-          >
-            <X className="h-5 w-5" />
-            CANCEL
-          </button>
-          <h2 className="font-display text-2xl text-foreground">📧 SCHEDULE EMAIL SHARING</h2>
-          <button
-            onClick={handleScheduleEmail}
-            disabled={isScheduling || contacts.length === 0 || !scheduledDate || !scheduledTime}
-            className="btn-primary-pop flex items-center gap-2 disabled:opacity-50"
-          >
-            {isScheduling ? (
-              <>SCHEDULING...</>
-            ) : (
-              <>
-                <Send className="h-5 w-5" />
-                SCHEDULE
-              </>
-            )}
-          </button>
-        </div>
+    <div className="min-h-[100dvh] halftone flex flex-col">
+      {/* ── Sticky header ── */}
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border px-4 py-3 flex items-center justify-between">
+        <button onClick={onCancel} className="comic-button flex items-center gap-1.5 bg-muted px-3 py-1.5 text-sm text-muted-foreground">
+          <ArrowLeft className="h-4 w-4" />
+          BACK
+        </button>
+        <h2 className="font-display text-lg text-foreground flex items-center gap-1.5">
+          <Mail className="h-4 w-4 text-primary" />
+          SEND VIA EMAIL
+        </h2>
+        <div className="w-16" />
+      </div>
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                📸 Your Photo Strip
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex justify-center">
-                <img 
-                  src={stripImage} 
-                  alt="Photo Strip" 
-                  className="max-w-full h-auto border-4 border-primary/20 rounded-lg shadow-lg"
-                  style={{ maxHeight: "400px" }}
-                />
-              </div>
-            </CardContent>
-          </Card>
+      {/* ── Body ── */}
+      <div className="flex-1 flex flex-col px-4 py-5 gap-4 max-w-md mx-auto w-full">
 
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5" />
-                  Recipients ({contacts.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-2">
-                  <Input
-                    placeholder="Name"
-                    value={newContactName}
-                    onChange={(e) => setNewContactName(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && addContact()}
-                  />
-                  <div className="flex gap-1">
-                    <Input
-                      placeholder="email@gmail.com"
-                      value={newContactEmail}
-                      onChange={(e) => setNewContactEmail(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && addContact()}
-                      type="email"
-                    />
-                    <Button onClick={addContact} size="sm">
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="space-y-2 max-h-32 overflow-y-auto">
-                  {contacts.map((contact) => (
-                    <div key={contact.id} className="flex items-center justify-between p-2 bg-muted rounded">
-                      <div>
-                        <div className="font-medium text-sm">{contact.name}</div>
-                        <div className="text-xs text-muted-foreground">{contact.email}</div>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeContact(contact.id)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-
-                {contacts.length === 0 && (
-                  <div className="text-center text-muted-foreground text-sm py-4">
-                    No recipients added yet. Add some contacts above!
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Mail className="h-5 w-5" />
-                  Email Content
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Subject</label>
-                  <Input
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
-                    placeholder="Email subject"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Message</label>
-                  <Textarea
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Your message to accompany the photo strip"
-                    rows={4}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="h-5 w-5" />
-                  Schedule Delivery
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium mb-2 block flex items-center gap-1">
-                      <Calendar className="h-4 w-4" />
-                      Date
-                    </label>
-                    <Input
-                      type="date"
-                      value={scheduledDate}
-                      onChange={(e) => setScheduledDate(e.target.value)}
-                      min={today}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium mb-2 block flex items-center gap-1">
-                      <Clock className="h-4 w-4" />
-                      Time
-                    </label>
-                    <Input
-                      type="time"
-                      value={scheduledTime}
-                      onChange={(e) => setScheduledTime(e.target.value)}
-                      min={scheduledDate === today ? currentTime : "00:00"}
-                    />
-                  </div>
-                </div>
-
-                {scheduledDate && scheduledTime && (
-                  <div className="bg-accent/10 p-3 rounded border border-accent/20">
-                    <div className="text-sm">
-                      <strong>Scheduled for:</strong> {new Date(`${scheduledDate}T${scheduledTime}`).toLocaleString()}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      Your photo strip will be sent to {contacts.length} recipient{contacts.length !== 1 ? 's' : ''} at this time.
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+        {/* ── Strip preview (small) ── */}
+        <div className="flex justify-center">
+          <div className="comic-card overflow-hidden bg-card p-2 inline-block">
+            <img
+              src={stripImage}
+              alt="Photo Strip"
+              className="h-36 w-auto rounded-xl object-contain border-2 border-foreground"
+            />
           </div>
         </div>
+
+        {/* ── Add recipients ── */}
+        <div className="comic-card bg-card p-4">
+          <p className="font-display text-sm text-foreground mb-3 flex items-center gap-1.5">
+            <User className="h-4 w-4 text-primary" />
+            SEND TO
+          </p>
+
+          {/* Contact input — stacked for mobile */}
+          <div className="flex flex-col gap-2 mb-3">
+            <input
+              className="w-full rounded-xl border-2 border-border bg-background px-3 py-2.5 text-sm font-medium placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none transition-colors"
+              placeholder="Name (optional)"
+              value={newContactName}
+              onChange={(e) => setNewContactName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addContact()}
+            />
+            <div className="flex gap-2">
+              <input
+                className="flex-1 rounded-xl border-2 border-border bg-background px-3 py-2.5 text-sm font-medium placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none transition-colors"
+                placeholder="email@example.com"
+                type="email"
+                value={newContactEmail}
+                onChange={(e) => setNewContactEmail(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addContact()}
+              />
+              <button
+                onClick={addContact}
+                disabled={!newContactEmail.trim() || !isValidEmail(newContactEmail)}
+                className="comic-button bg-primary text-primary-foreground px-3 py-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Plus className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Contact chips */}
+          {contacts.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {contacts.map((c) => (
+                <div
+                  key={c.id}
+                  className="flex items-center gap-1.5 bg-primary/10 border border-primary/20 rounded-full pl-3 pr-1.5 py-1 group"
+                >
+                  <div className="flex flex-col leading-tight">
+                    <span className="text-xs font-bold text-foreground">{c.name}</span>
+                    <span className="text-[10px] text-muted-foreground">{c.email}</span>
+                  </div>
+                  <button
+                    onClick={() => removeContact(c.id)}
+                    className="h-5 w-5 flex items-center justify-center rounded-full hover:bg-destructive/20 transition-colors"
+                  >
+                    <X className="h-3 w-3 text-muted-foreground group-hover:text-destructive" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground text-center py-2">
+              Add at least one email address above ☝️
+            </p>
+          )}
+        </div>
+
+        {/* ── Message (collapsible) ── */}
+        <div className="comic-card bg-card p-4">
+          <button
+            onClick={() => setShowMessageEdit(!showMessageEdit)}
+            className="w-full flex items-center justify-between"
+          >
+            <p className="font-display text-sm text-foreground flex items-center gap-1.5">
+              <Sparkles className="h-4 w-4 text-accent" />
+              MESSAGE
+            </p>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              {showMessageEdit ? "collapse" : "edit"}
+              {showMessageEdit ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            </div>
+          </button>
+
+          {showMessageEdit ? (
+            <textarea
+              className="mt-3 w-full rounded-xl border-2 border-border bg-background px-3 py-2.5 text-sm font-medium placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none resize-none transition-colors"
+              rows={3}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Write a message…"
+            />
+          ) : (
+            <p className="mt-2 text-xs text-muted-foreground italic line-clamp-2">"{message}"</p>
+          )}
+        </div>
+
+        {/* ── Send Later toggle ── */}
+        <div className="comic-card bg-card p-4">
+          <button
+            onClick={() => setShowSchedule(!showSchedule)}
+            className="w-full flex items-center justify-between"
+          >
+            <p className="font-display text-sm text-foreground flex items-center gap-1.5">
+              <Clock className="h-4 w-4 text-secondary" />
+              SEND LATER?
+            </p>
+            <div
+              className={`relative w-10 h-5 rounded-full transition-colors ${
+                showSchedule ? "bg-primary" : "bg-muted"
+              }`}
+            >
+              <div
+                className={`absolute top-0.5 h-4 w-4 rounded-full bg-white border border-border shadow transition-transform ${
+                  showSchedule ? "translate-x-5" : "translate-x-0.5"
+                }`}
+              />
+            </div>
+          </button>
+
+          {showSchedule && (
+            <div className="mt-3 flex gap-2">
+              <div className="flex-1">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Date</label>
+                <input
+                  type="date"
+                  className="w-full rounded-xl border-2 border-border bg-background px-3 py-2 text-sm font-medium focus:border-primary focus:outline-none transition-colors"
+                  value={scheduledDate}
+                  onChange={(e) => setScheduledDate(e.target.value)}
+                  min={today}
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Time</label>
+                <input
+                  type="time"
+                  className="w-full rounded-xl border-2 border-border bg-background px-3 py-2 text-sm font-medium focus:border-primary focus:outline-none transition-colors"
+                  value={scheduledTime}
+                  onChange={(e) => setScheduledTime(e.target.value)}
+                  min={scheduledDate === today ? currentTime : "00:00"}
+                />
+              </div>
+            </div>
+          )}
+
+          {!showSchedule && (
+            <p className="mt-1.5 text-[10px] text-muted-foreground">Email will be sent right away</p>
+          )}
+        </div>
+
+        {/* ── Send button ── */}
+        <button
+          onClick={handleSend}
+          disabled={!canSend || isSending}
+          className="btn-primary-pop w-full flex items-center justify-center gap-3 text-xl mt-auto disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isSending ? (
+            <>
+              <Mail className="h-6 w-6 animate-pulse" />
+              SENDING…
+            </>
+          ) : (
+            <>
+              <Send className="h-6 w-6" />
+              {showSchedule && scheduledDate ? "SCHEDULE SEND" : "SEND NOW"} 🚀
+            </>
+          )}
+        </button>
+
+        {/* Summary */}
+        {canSend && (
+          <p className="text-center text-xs text-muted-foreground -mt-2 pb-4">
+            {showSchedule && scheduledDate && scheduledTime
+              ? `📅 Will be sent on ${new Date(scheduledDate + "T" + scheduledTime).toLocaleString()} to ${contacts.length} recipient${contacts.length > 1 ? "s" : ""}`
+              : `📧 Sending to ${contacts.length} recipient${contacts.length > 1 ? "s" : ""} instantly`}
+          </p>
+        )}
       </div>
     </div>
   );

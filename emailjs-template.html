@@ -1,0 +1,220 @@
+<!--
+  ╔══════════════════════════════════════════════════════════════════════════╗
+  ║  PUFFSNAP — EmailJS Template                                           ║
+  ║  Copy-paste this into your EmailJS template editor at emailjs.com      ║
+  ║  Dashboard → Email Templates → template_yvrf84o → Content              ║
+  ╚══════════════════════════════════════════════════════════════════════════╝
+
+  ⚠️  IMPORTANT — Template SETTINGS tab (not Content):
+    To Email     →  {{to_email}}       ← ONLY this, nothing else!
+    From Name    →  {{from_name}}
+    Reply To     →  {{reply_to}}
+    Subject      →  {{subject}}
+    CC / BCC     →  LEAVE EMPTY (or you'll get a copy of every email!)
+
+  If you still see emails in your inbox, it's because Gmail auto-saves
+  every sent email in your Sent folder. Create a Gmail filter to hide them:
+    from:me subject:"PUFFSNAP" → Skip Inbox, Mark as Read
+
+  Template variables used:
+    {{to_name}}         — recipient name
+    {{to_email}}        — recipient email (used by EmailJS for delivery)
+    {{from_name}}       — display name, e.g. "PUFFSNAP Photobooth"
+    {{reply_to}}        — reply-to address, e.g. "puffsnap@gmail.com"
+    {{message}}         — sender's personal message
+    {{image_url}}       — Cloudinary download link
+    {{qr_code}}         — QR code data-URL image (base64 PNG)
+    {{download_link}}   — pre-built HTML <a> button (fallback)
+    {{photo_mode}}      — e.g. "4-shot strip"
+    {{frame_style}}     — e.g. "polaroid"
+    {{hashtag}}         — e.g. "#PUFFSNAP"
+    {{date}}            — creation date
+    {{attachment_note}} — contextual helper text
+-->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Comic Neue', cursive;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f6ff;
+        }
+        .container {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 4px 4px 0px #4c1d95;
+            border: 2px solid #4c1d95;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .header h1 {
+            font-family: 'Bangers', cursive;
+            color: #7c3aed;
+            font-size: 32px;
+            margin: 0;
+        }
+        .header p {
+            color: #6b7280;
+            margin: 4px 0 0;
+        }
+        .message-box {
+            background: #f3e8ff;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 20px 0;
+            border: 2px solid #7c3aed;
+        }
+        .info {
+            background: #fdf2f8;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-size: 14px;
+        }
+        .info p { margin: 6px 0; }
+
+        /* ── Download section ─────────────────────────── */
+        .download-section {
+            text-align: center;
+            margin: 28px 0;
+            padding: 24px 16px;
+            background: linear-gradient(135deg, #ede9fe, #fce7f3);
+            border-radius: 16px;
+            border: 2px dashed #7c3aed;
+        }
+        .download-section h3 {
+            margin: 0 0 6px;
+            color: #4c1d95;
+            font-family: 'Bangers', cursive;
+            font-size: 22px;
+        }
+        .download-section p {
+            margin: 0 0 16px;
+            color: #6b7280;
+            font-size: 14px;
+        }
+        .download-btn {
+            display: inline-block;
+            background: #7c3aed;
+            color: #ffffff !important;
+            padding: 14px 32px;
+            border-radius: 12px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 16px;
+            font-family: 'Comic Neue', cursive;
+            box-shadow: 3px 3px 0px #4c1d95;
+        }
+
+        /* ── QR section ───────────────────────────────── */
+        .qr-section {
+            text-align: center;
+            margin: 24px 0;
+            padding: 20px 16px;
+            background: #faf5ff;
+            border-radius: 12px;
+        }
+        .qr-section h4 {
+            margin: 0 0 4px;
+            color: #4c1d95;
+            font-size: 16px;
+        }
+        .qr-section p {
+            margin: 0 0 12px;
+            color: #9ca3af;
+            font-size: 13px;
+        }
+        .qr-section img {
+            border-radius: 8px;
+            border: 3px solid #e9d5ff;
+        }
+
+        /* ── Direct link fallback ─────────────────────── */
+        .link-fallback {
+            text-align: center;
+            margin: 16px 0 0;
+            font-size: 13px;
+            color: #9ca3af;
+            word-break: break-all;
+        }
+        .link-fallback a { color: #7c3aed; }
+
+        .footer {
+            text-align: center;
+            margin-top: 24px;
+            padding-top: 16px;
+            border-top: 1px solid #e5e7eb;
+            color: #9ca3af;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>📸 PUFFSNAP</h1>
+            <p>Someone shared a photo strip with you!</p>
+        </div>
+
+        <p>Hello <strong>{{to_name}}</strong>! 👋</p>
+
+        <p><strong>{{from_name}}</strong> sent you a PUFFSNAP photo strip.</p>
+
+        <!-- Message -->
+        <div class="message-box">
+            <h3 style="margin:0 0 8px; color:#4c1d95;">💜 Message:</h3>
+            <p style="margin:0; color:#374151;">"{{message}}"</p>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════════
+             DOWNLOAD BUTTON — links to Cloudinary image
+             ═══════════════════════════════════════════════════════════════ -->
+        <div class="download-section">
+            <h3>📥 Your Photo Strip is Ready!</h3>
+            <p>{{attachment_note}}</p>
+            <a href="{{image_url}}" target="_blank" class="download-btn">
+                📥 Download Photo Strip
+            </a>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════════
+             QR CODE — scan with phone camera to open the download link
+             ═══════════════════════════════════════════════════════════════ -->
+        <div class="qr-section">
+            <h4>📱 Or scan this QR code</h4>
+            <p>Open your phone camera and point it here!</p>
+            <img src="{{qr_code}}" alt="QR Code to download photo strip" width="180" height="180" />
+        </div>
+
+        <!-- Direct link fallback (in case button doesn't render) -->
+        <div class="link-fallback">
+            Button not working? Copy this link:<br/>
+            <a href="{{image_url}}" target="_blank">{{image_url}}</a>
+        </div>
+
+        <!-- Strip info -->
+        <div class="info">
+            <p><strong>📷 Mode:</strong> {{photo_mode}}</p>
+            <p><strong>🎨 Frame:</strong> {{frame_style}}</p>
+            <p><strong>#️⃣ Hashtag:</strong> {{hashtag}}</p>
+            <p><strong>📅 Created:</strong> {{date}}</p>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>Made with 💜 by <strong>PUFFSNAP</strong> Photobooth</p>
+            <p>📸✨ Snap. Pose. Slay.</p>
+        </div>
+    </div>
+</body>
+</html>

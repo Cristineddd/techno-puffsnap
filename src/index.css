@@ -86,7 +86,9 @@
     @apply bg-background text-foreground antialiased;
     font-family: 'Comic Neue', cursive;
     background: var(--gradient-bg);
-    min-height: 100vh;
+    min-height: 100dvh;
+    /* iOS safe area support */
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -256,6 +258,30 @@
   .animate-pop {
     animation: pop 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
   }
+
+  .shake {
+    animation: shake 0.4s ease-in-out;
+  }
+
+  /* ── Gallery / Flipbook animations ─────────────────────────────── */
+  .animate-flip-next {
+    animation: flip-next 0.4s ease-in-out;
+  }
+
+  .animate-flip-prev {
+    animation: flip-prev 0.4s ease-in-out;
+  }
+
+  /* Swipe gallery smooth transition */
+  .swipe-gallery-item {
+    scroll-snap-align: center;
+    scroll-snap-stop: always;
+  }
+
+  .swipe-gallery-container {
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 @keyframes float {
@@ -305,6 +331,14 @@
   }
 }
 
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(5px); }
+}
+
 @keyframes countdown-pulse {
   0%, 100% {
     transform: scale(1);
@@ -316,8 +350,17 @@
   }
 }
 
-.countdown-number {
-  animation: countdown-pulse 1s ease-in-out;
+/* Flipbook animations */
+@keyframes flip-next {
+  0% { transform: perspective(1200px) rotateY(0deg); }
+  50% { transform: perspective(1200px) rotateY(-8deg); }
+  100% { transform: perspective(1200px) rotateY(0deg); }
+}
+
+@keyframes flip-prev {
+  0% { transform: perspective(1200px) rotateY(0deg); }
+  50% { transform: perspective(1200px) rotateY(8deg); }
+  100% { transform: perspective(1200px) rotateY(0deg); }
 }
 
 /* Comic action words */

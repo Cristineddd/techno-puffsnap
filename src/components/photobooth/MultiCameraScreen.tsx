@@ -7,12 +7,34 @@ interface MultiCameraScreenProps {
   timer?: number;
   onComplete: (images: string[]) => void;
   onBack: () => void;
+  /** Pre-filled images from a previous session (for selective retake) */
+  existingImages?: string[];
+  /** Indices of slots to retake; undefined means shoot all slots fresh */
+  retakeIndices?: number[];
 }
 
-const MultiCameraScreen = ({ mode, timer = 3, onComplete, onBack }: MultiCameraScreenProps) => {
+const MultiCameraScreen = ({ mode, timer = 3, onComplete, onBack, existingImages, retakeIndices }: MultiCameraScreenProps) => {
+  // Build initial images array: fill slots with existing images, leave retake slots empty ("")
+  const buildInitialImages = () => {
+    if (!existingImages || !retakeIndices) return [] as string[];
+    const retakeSet = new Set(retakeIndices);
+    return existingImages.map((img, i) => (retakeSet.has(i) ? "" : img));
+  };
+
+  // Which slots still need a photo shot
+  const buildSlotsQueue = (): number[] => {
+    if (!retakeIndices) return Array.from({ length: mode }, (_, i) => i);
+    return retakeIndices.slice().sort((a, b) => a - b);
+  };
+
+  const initialImages = buildInitialImages();
+  const slotsQueue = buildSlotsQueue();
+
   const [countdown, setCountdown] = useState<number | null>(null);
-  const [currentShot, setCurrentShot] = useState(0);
-  const [capturedImages, setCapturedImages] = useState<string[]>([]);
+  const [shotQueueIdx, setShotQueueIdx] = useState(0); // index into slotsQueue
+  const [capturedImages, setCapturedImages] = useState<string[]>(
+    initialImages.length ? initialImages : Array(mode).fill("")
+  );
   const [isCapturing, setIsCapturing] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isMirrored, setIsMirrored] = useState(true);
@@ -109,24 +131,26 @@ const MultiCameraScreen = ({ mode, timer = 3, onComplete, onBack }: MultiCameraS
         }
         ctx.drawImage(video, 0, 0);
         const imageData = canvas.toDataURL("image/png");
-        
+
         setShowFlash(true);
         setTimeout(() => setShowFlash(false), 200);
 
-        const newImages = [...capturedImages, imageData];
+        // Place photo into the correct slot
+        const slotIdx = slotsQueue[shotQueueIdx];
+        const newImages = [...capturedImages];
+        newImages[slotIdx] = imageData;
         setCapturedImages(newImages);
-        
-        const nextShot = currentShot + 1;
-        setCurrentShot(nextShot);
-        
-        if (nextShot >= mode) {
+
+        const nextQueueIdx = shotQueueIdx + 1;
+        setShotQueueIdx(nextQueueIdx);
+
+        const remaining = slotsQueue.length - nextQueueIdx;
+        if (remaining === 0) {
           speak("Perfect! All photos captured!");
           setTimeout(() => onComplete(newImages), 1500);
         } else {
-          speak(`Great shot! ${mode - nextShot} more to go`);
-          setTimeout(() => {
-            setCountdown(timer);
-          }, 2000);
+          speak(`Great shot! ${remaining} more to go`);
+          setTimeout(() => setCountdown(timer), 2000);
         }
       }
     }
@@ -134,8 +158,8 @@ const MultiCameraScreen = ({ mode, timer = 3, onComplete, onBack }: MultiCameraS
   };
 
   const handleRetake = () => {
-    setCapturedImages([]);
-    setCurrentShot(0);
+    setCapturedImages(initialImages.length ? [...initialImages] : Array(mode).fill(""));
+    setShotQueueIdx(0);
     setIsCapturing(false);
     setCountdown(null);
   };
@@ -150,54 +174,54 @@ const MultiCameraScreen = ({ mode, timer = 3, onComplete, onBack }: MultiCameraS
   };
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center px-4 py-8 halftone">
-      {/* Back button */}
-      <button
-        onClick={onBack}
-        className="absolute left-4 top-4 z-20 comic-card flex h-14 w-14 items-center justify-center bg-muted transition-transform hover:scale-105"
-      >
-        <X className="h-6 w-6 text-foreground" />
-      </button>
+    <div className="relative flex h-[100dvh] flex-col halftone overflow-hidden">
+      {/* Top bar — compact on mobile */}
+      <div className="relative z-20 flex items-center justify-between px-3 py-2 sm:px-4 sm:py-3 bg-background/80 backdrop-blur shrink-0">
+        {/* Back */}
+        <button
+          onClick={onBack}
+          className="comic-card flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center bg-muted"
+        >
+          <X className="h-5 w-5 text-foreground" />
+        </button>
 
-      {/* Voice toggle */}
-      <button
-        onClick={() => setVoiceEnabled(!voiceEnabled)}
-        className={`absolute left-4 top-20 z-20 comic-card flex h-14 w-14 items-center justify-center transition-transform hover:scale-105 ${
-          voiceEnabled ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-        }`}
-      >
-        {voiceEnabled ? "🔊" : "🔇"}
-      </button>
-
-      {/* Shot counter */}
-      <div className="absolute right-4 top-4 z-20">
-        <div className="comic-card bg-accent px-5 py-3">
-          <span className="font-display text-2xl text-accent-foreground">{currentShot}</span>
-          <span className="font-display text-xl text-accent-foreground/70"> / {mode}</span>
+        {/* Shot counter */}
+        <div className="comic-card bg-accent px-4 py-1.5 sm:px-5 sm:py-2">
+          <span className="font-display text-xl sm:text-2xl text-accent-foreground">{capturedImages.filter(Boolean).length}</span>
+          <span className="font-display text-lg sm:text-xl text-accent-foreground/70"> / {mode}</span>
         </div>
+
+        {/* Voice toggle */}
+        <button
+          onClick={() => setVoiceEnabled(!voiceEnabled)}
+          className={`comic-card flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center text-lg ${
+            voiceEnabled ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+          }`}
+        >
+          {voiceEnabled ? "🔊" : "🔇"}
+        </button>
       </div>
 
-      {/* Main camera area */}
-      <div className="relative w-full max-w-2xl">
-        {/* Comic panel frame */}
-        <div className="comic-panel bg-card p-2">
-          <div className="relative overflow-hidden rounded-xl">
-            {/* Video preview */}
+      {/* Camera viewfinder — takes as much space as possible */}
+      <div className="flex-1 relative min-h-0 px-2 sm:px-4 py-1 sm:py-2 flex items-center justify-center">
+        <div className="comic-panel bg-card p-1 sm:p-2 w-full h-full max-w-2xl flex items-center justify-center">
+          <div className="relative overflow-hidden rounded-xl w-full h-full">
+            {/* Video preview — fill container, phone-friendly */}
             <video
               ref={videoRef}
               autoPlay
               playsInline
               muted
-              className={`aspect-[4/3] w-full object-cover ${isMirrored ? "scale-x-[-1]" : ""}`}
+              className={`w-full h-full object-cover ${isMirrored ? "scale-x-[-1]" : ""}`}
             />
             
             {/* Countdown overlay */}
             {countdown !== null && countdown > 0 && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-foreground/80">
-                <span className="countdown-number font-display text-9xl text-primary comic-text-shadow">
+                <span className="countdown-number font-display text-7xl sm:text-9xl text-primary comic-text-shadow">
                   {countdown}
                 </span>
-                <p className="mt-4 font-display text-3xl text-primary-foreground animate-bounce">
+                <p className="mt-2 sm:mt-4 font-display text-xl sm:text-3xl text-primary-foreground animate-bounce">
                   {getCountdownWord(countdown)}
                 </p>
               </div>
@@ -208,82 +232,106 @@ const MultiCameraScreen = ({ mode, timer = 3, onComplete, onBack }: MultiCameraS
               <div className="absolute inset-0 bg-accent" />
             )}
 
-            {/* Corner decorations - comic style */}
-            <div className="absolute left-3 top-3 flex items-center gap-1">
-              <Zap className="h-6 w-6 text-accent fill-accent" />
+            {/* Corner decorations */}
+            <div className="absolute left-2 top-2 sm:left-3 sm:top-3">
+              <Zap className="h-4 w-4 sm:h-6 sm:w-6 text-accent fill-accent" />
             </div>
-            <div className="absolute right-3 top-3 flex items-center gap-1">
-              <Zap className="h-6 w-6 text-accent fill-accent scale-x-[-1]" />
+            <div className="absolute right-2 top-2 sm:right-3 sm:top-3">
+              <Zap className="h-4 w-4 sm:h-6 sm:w-6 text-accent fill-accent scale-x-[-1]" />
             </div>
 
             <canvas ref={canvasRef} className="hidden" />
           </div>
         </div>
-
-        {/* Thumbnails of captured shots */}
-        {capturedImages.length > 0 && (
-          <div className="mt-4 flex justify-center gap-2">
-            {capturedImages.map((img, idx) => (
-              <div key={idx} className="relative overflow-hidden rounded-xl border-4 border-foreground bg-card">
-                <img src={img} alt={`Shot ${idx + 1}`} className="h-16 w-20 object-cover" />
-                <div className="absolute inset-0 flex items-center justify-center bg-primary/60">
-                  <span className="font-display text-xl text-primary-foreground">{idx + 1}</span>
-                </div>
-              </div>
-            ))}
-            {[...Array(mode - capturedImages.length)].map((_, idx) => (
-              <div key={`empty-${idx}`} className="flex h-16 w-20 items-center justify-center rounded-xl border-4 border-dashed border-muted-foreground bg-muted/50">
-                <span className="font-display text-lg text-muted-foreground">{capturedImages.length + idx + 1}</span>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
-      {/* Controls */}
-      <div className="mt-8 flex items-center gap-6">
+      {/* Thumbnails — smaller on mobile */}
+      <div className="shrink-0 px-3 py-1.5 sm:py-2 flex justify-center gap-1.5 sm:gap-2 overflow-x-auto">
+        {capturedImages.map((img, idx) => {
+          const isRetakeSlot = slotsQueue.includes(idx);
+          const isCurrent = slotsQueue[shotQueueIdx] === idx;
+          const isDone = !!img;
+          return (
+            <div
+              key={idx}
+              className={`relative overflow-hidden rounded-lg sm:rounded-xl border-3 sm:border-4 bg-card shrink-0 ${
+                isCurrent
+                  ? "border-primary animate-pulse"
+                  : isDone
+                  ? "border-foreground"
+                  : "border-dashed border-muted-foreground"
+              }`}
+            >
+              {isDone ? (
+                <img src={img} alt={`Shot ${idx + 1}`} className="h-11 w-14 sm:h-16 sm:w-20 object-cover" />
+              ) : (
+                <div className="flex h-11 w-14 sm:h-16 sm:w-20 items-center justify-center">
+                  <span className="font-display text-sm sm:text-lg text-muted-foreground">{idx + 1}</span>
+                </div>
+              )}
+              <div className={`absolute inset-0 flex items-center justify-center ${isDone ? "bg-primary/50" : ""}`}>
+                <span className="font-display text-base sm:text-xl text-primary-foreground">
+                  {isCurrent ? "📸" : isDone && isRetakeSlot ? "✓" : isDone ? idx + 1 : ""}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Controls — compact bottom bar */}
+      <div className="shrink-0 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1 sm:pb-6 sm:pt-2 flex items-center justify-center gap-4 sm:gap-6">
         {/* Mirror toggle */}
         <button
           onClick={() => setIsMirrored(!isMirrored)}
-          className={`comic-card flex h-16 w-16 items-center justify-center transition-transform hover:scale-105 ${isMirrored ? "bg-primary" : "bg-muted"}`}
+          className={`comic-card flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center transition-transform hover:scale-105 ${isMirrored ? "bg-primary" : "bg-muted"}`}
         >
-          <FlipHorizontal className={`h-7 w-7 ${isMirrored ? "text-primary-foreground" : "text-muted-foreground"}`} />
+          <FlipHorizontal className={`h-5 w-5 sm:h-7 sm:w-7 ${isMirrored ? "text-primary-foreground" : "text-muted-foreground"}`} />
         </button>
 
         {/* Capture button */}
         {!isCapturing ? (
           <button
             onClick={handleCapture}
-            className="btn-primary-pop flex h-24 w-24 items-center justify-center rounded-full"
+            className="btn-primary-pop flex h-18 w-18 sm:h-24 sm:w-24 items-center justify-center rounded-full"
+            style={{ height: 72, width: 72 }}
           >
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-card border-4 border-foreground">
-              <Camera className="h-10 w-10 text-primary" />
+            <div className="flex h-14 w-14 sm:h-20 sm:w-20 items-center justify-center rounded-full bg-card border-4 border-foreground"
+              style={{ height: 56, width: 56 }}
+            >
+              <Camera className="h-7 w-7 sm:h-10 sm:w-10 text-primary" />
             </div>
           </button>
         ) : (
-          <div className="flex h-24 w-24 items-center justify-center">
-            <div className="h-20 w-20 animate-pulse rounded-full bg-secondary border-4 border-foreground" />
+          <div className="flex items-center justify-center" style={{ height: 72, width: 72 }}>
+            <div className="h-14 w-14 sm:h-20 sm:w-20 animate-pulse rounded-full bg-secondary border-4 border-foreground"
+              style={{ height: 56, width: 56 }}
+            />
           </div>
         )}
 
         {/* Retake button */}
         <button
           onClick={handleRetake}
-          disabled={capturedImages.length === 0}
-          className="comic-card flex h-16 w-16 items-center justify-center bg-muted transition-transform hover:scale-105 disabled:opacity-30"
+          disabled={capturedImages.filter(Boolean).length === 0}
+          className="comic-card flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center bg-muted transition-transform hover:scale-105 disabled:opacity-30"
         >
-          <RotateCcw className="h-7 w-7 text-muted-foreground" />
+          <RotateCcw className="h-5 w-5 sm:h-7 sm:w-7 text-muted-foreground" />
         </button>
       </div>
 
-      {/* Instructions */}
-      <div className="mt-6 comic-card bg-accent px-6 py-3">
-        <p className="text-center font-display text-lg text-accent-foreground">
-          {isCapturing 
-            ? `📸 CAPTURING ${mode} SHOTS...` 
-            : `TAP TO TAKE ${mode} PHOTOS!`
-          }
-        </p>
+      {/* Instructions — compact on mobile */}
+      <div className="shrink-0 px-3 pb-2 sm:pb-4">
+        <div className="comic-card bg-accent px-4 py-2 sm:px-6 sm:py-3 mx-auto max-w-md">
+          <p className="text-center font-display text-sm sm:text-lg text-accent-foreground">
+            {isCapturing
+              ? `📸 CAPTURING SHOT ${(slotsQueue[shotQueueIdx] ?? 0) + 1}...`
+              : shotQueueIdx < slotsQueue.length
+              ? `TAP TO TAKE PHOTO ${(slotsQueue[shotQueueIdx] ?? 0) + 1} OF ${mode}!`
+              : "✅ ALL SHOTS DONE!"
+            }
+          </p>
+        </div>
       </div>
     </div>
   );
